@@ -1,5 +1,7 @@
 #!/bin/bash
 TMP_FILE="/tmp/opp.txt"
+TMP_FILE2="/tmp/opp2.txt"
+
 if [ "$#" -lt "1" ]; then
     echo "ERROR: Not enough arguments passed, run with --help to get more info!"
     exit 1
@@ -48,7 +50,23 @@ elif [ "$COMMAND" = "--all" ]; then
         ospurge --purge-project $NAME --verbose
         if [ $? -eq 0 ]; then
             # Before doing delete of project delete all of its users also
+            openstack user list --project $NAME --format csv | tail -n +2 > $TMP_FILE2
+            if [ $? -ne 0 ]; then
+                echo "ERROR: Could not list user for project $NAME!"
+                exit 1
+            fi
+            while IFS=, read -r USERID USERNAME
+            do
+                USERID=`echo $USERID | tr -d \"`
+                USERNAME=`echo $USERNAME | tr -d \"`
+                if [ "$USERNAME" = "admin" ]; then
+                    continue
+                fi
+                openstack user delete $USERNAME
+            done < $TMP_FILE2
+            # Now delete the project also when no users left
             openstack project delete $NAME
+            rm $TMP_FILE2
         else
             echo "ERROR: Purge failed for project $NAME"
         fi
